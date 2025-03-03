@@ -1,6 +1,6 @@
 # Pokémon LLM Agent
 
-This project is an autonomous agent designed to play Pokémon Red using a large language model (LLM). The agent interacts with the game through an emulator, analyzes screenshots for game state, manages a knowledge base, and navigates the game world.
+This project is an autonomous agent designed to play Pokémon Red using a large language model (LLM). The agent interacts with the game through an emulator, analyzes screenshots for game state, manages a knowledge base, and navigates the game world. Originally created as part of a Wandering project at Misfits and Machines https://misfitsandmachines.com/
 
 ## Simplified Pokémon LLM Agent
 
