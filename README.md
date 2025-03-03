@@ -64,16 +64,55 @@ The agent supports two LLM providers:
 ## How to Run
 
 1. **Install Dependencies:**
-   ```bash
-   # For both providers
-   pip install opencv-python pytesseract numpy pillow huggingface_hub datasets
-   
-   # For Anthropic Claude
-   pip install anthropic
-   
-   # For Ollama local inference
-   pip install ollama
-   ```
+
+### Option 1: Using Python Virtual Environment (venv)
+
+```bash
+# Create a virtual environment
+python -m venv pokemon_env
+
+# Activate the virtual environment
+# On Windows
+pokemon_env\Scripts\activate
+# On macOS/Linux
+# source pokemon_env/bin/activate
+
+# Install dependencies
+pip install opencv-python pytesseract numpy pillow huggingface_hub datasets
+
+# Install LLM-specific dependencies
+pip install anthropic  # For Claude API
+pip install ollama     # For Ollama local inference
+```
+OR
+# Create a conda environment
+conda create -n pokemon_env python=3.9
+conda activate pokemon_env
+
+# Install dependencies
+pip install opencv-python pytesseract numpy pillow huggingface_hub datasets
+
+# Install LLM-specific dependencies
+pip install anthropic  # For Claude API
+pip install ollama     # For Ollama local inference
+```
+OR
+```
+# Install Poetry if you don't have it
+# On Windows: (run in PowerShell)
+(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+
+# On macOS/Linux
+# curl -sSL https://install.python-poetry.org | python3 -
+
+# Initialize project with Poetry
+poetry init --no-interaction
+poetry add opencv-python pytesseract numpy pillow huggingface_hub datasets
+poetry add anthropic ollama
+
+# Run commands through Poetry
+poetry run python main.py
+```
 
 2. **Set up Ollama (for local inference):**
 
@@ -82,11 +121,29 @@ The agent supports two LLM providers:
 * Make sure the Ollama service is running
 
 3. **Setup Environment:**
+```
 # For Anthropic Claude
-export ANTHROPIC_API_KEY="your-api-key-here"
+# On Windows
+set ANTHROPIC_API_KEY=your-api-key-here
+# On macOS/Linux
+# export ANTHROPIC_API_KEY="your-api-key-here"
+
+# For dataset collection (optional)
+# On Windows
+set HF_TOKEN=your-huggingface-token-here
+# On macOS/Linux
+# export HF_TOKEN="your-huggingface-token-here"
+
+# Set paths to emulator and ROM (optional)
+# On Windows
+set EMULATOR_PATH=path\to\your\emulator
+set ROM_PATH=path\to\pokemon\rom.gb
+# On macOS/Linux
+# export EMULATOR_PATH="path/to/your/emulator"
+# export ROM_PATH="path/to/pokemon/rom.gb"
+```
 
 4. **Run the Agent:**
-```
 # Using Claude (default)
 python main.py
 
@@ -98,6 +155,9 @@ python main.py --llm-provider ollama --model-name llama2:13b
 
 # Using Claude with a specific model
 python main.py --llm-provider anthropic --model-name claude-3-opus-20240229
+
+# Run with Dataset Collection
+python main.py --enable-dataset --hf-repo-id "your-username/pokemon-gameplay-dataset" --push-interval 50
 ```
 
 5. **Run with Dataset Collection:**
