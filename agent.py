@@ -1,10 +1,16 @@
-import time
+import os
+import re
 import json
-import anthropic
-import xml.etree.ElementTree as ET
-from PIL import Image
+import logging
+import time
 import numpy as np
+from PIL import Image
+import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Any, Tuple
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class KnowledgeBase:
     def __init__(self):
@@ -24,6 +30,7 @@ class KnowledgeBase:
         self.sections["map_knowledge"] = "Pallet Town is a small town with a few houses and Professor Oak's lab."
         
     def to_xml(self):
+        """Convert knowledge base to XML format"""
         root = ET.Element("knowledge_base")
         for key, value in self.sections.items():
             section = ET.SubElement(root, "section", id=key)
@@ -32,21 +39,77 @@ class KnowledgeBase:
         return ET.tostring(root, encoding="unicode")
     
     def update_section(self, section_id, content):
+        """Update a section of the knowledge base"""
         self.sections[section_id] = content
         
     def get_section(self, section_id):
+        """Get a section from the knowledge base"""
         return self.sections.get(section_id, "")
     
     def get_all_sections(self):
         """Return all knowledge base sections as a formatted string"""
         result = "KNOWLEDGE BASE:\n\n"
         for key, value in self.sections.items():
-            result += f"--- {key} ---\n{value}\n\n"
+            result += f"[{key.upper()}]\n{value}\n\n"
         return result
 
 class PokemonAgent:
-    def __init__(self, api_key, controller, screen_capture, knowledge_base):
-        self.client = anthropic.Anthropic(api_key=api_key)
+    def __init__(self, api_key=None, controller=None, screen_capture=None, knowledge_base=None, 
+                 llm_provider="anthropic", model_name=None):
+        """
+        Initialize the Pokémon agent with configurable LLM provider
+        
+        Args:
+            api_key: API key for cloud providers (Anthropic)
+            controller: Game controller interface
+            screen_capture: Screen capture interface
+            knowledge_base: Knowledge base instance
+            llm_provider: "anthropic" or "ollama" 
+            model_name: Model name (default: "claude-3-sonnet-20240229" for Anthropic or "deepseek-r1" for Ollama)
+        """
+        self.llm_provider = llm_provider.lower()
+        
+        # Set default model name based on provider if not specified
+        if model_name is None:
+            if self.llm_provider == "anthropic":
+                self.model_name = "claude-3-sonnet-20240229"
+            elif self.llm_provider == "ollama":
+                self.model_name = "deepseek-coder:16b-instruct"
+            else:
+                raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
+        else:
+            self.model_name = model_name
+        
+        # Initialize appropriate client
+        if self.llm_provider == "anthropic":
+            try:
+                import anthropic
+                if not api_key:
+                    api_key = os.environ.get("ANTHROPIC_API_KEY")
+                    if not api_key:
+                        raise ValueError("API key is required for Anthropic. Set it directly or via ANTHROPIC_API_KEY environment variable.")
+                self.client = anthropic.Anthropic(api_key=api_key)
+                logger.info(f"Initialized Anthropic client with model {self.model_name}")
+            except ImportError:
+                raise ImportError("The 'anthropic' package is required for using Claude. Install it with 'pip install anthropic'.")
+                
+        elif self.llm_provider == "ollama":
+            try:
+                import ollama
+                self.client = ollama  # The ollama module itself is the client
+                logger.info(f"Initialized Ollama client with model {self.model_name}")
+                # Check if the model is available
+                try:
+                    self.client.list()
+                    logger.info("Ollama is running and available")
+                except Exception as e:
+                    logger.warning(f"Ollama may not be properly installed or running: {e}")
+                    logger.warning("Make sure Ollama is installed and the Ollama service is running")
+            except ImportError:
+                raise ImportError("The 'ollama' package is required for local inference. Install it with 'pip install ollama'.")
+        else:
+            raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
+            
         self.controller = controller
         self.screen_capture = screen_capture
         self.knowledge_base = knowledge_base
@@ -54,25 +117,24 @@ class PokemonAgent:
         self.last_screenshot = None
         self.current_location = None
         self.step_count = 0
-        self.callbacks = []  # Add this line
+        self.callbacks = []
         
     def register_callback(self, callback_function):
         """Register a callback function for agent decisions"""
         self.callbacks.append(callback_function)
         
     def _create_prompt(self, game_state_description, screenshot_path=None):
-        """Create a prompt for Claude with current game state and knowledge base"""
+        """Create a prompt for the LLM with current game state and knowledge base"""
         
         # Include recent conversation history (last 3 exchanges)
         history_text = ""
         if self.conversation_history:
             history = self.conversation_history[-3:]
             for i, entry in enumerate(history):
-                history_text += f"\nPrevious Turn {i+1}:\n"
-                history_text += f"Game state: {entry['game_state']}\n"
-                history_text += f"Your reasoning: {entry['response']}\n"
-                history_text += f"Actions taken: {entry['actions_taken']}\n"
-                history_text += f"Result: {entry['result']}\n"
+                history_text += f"PREVIOUS TURN {self.step_count - len(history) + i}:\n"
+                history_text += f"Game state: {entry.get('game_state', '')[:100]}...\n"
+                history_text += f"Action: {entry.get('action', '')}\n"
+                history_text += f"Result: {entry.get('result', '')}\n\n"
         
         # Combine all components
         system_prompt = f"""
@@ -118,8 +180,8 @@ class PokemonAgent:
         # 2. Create the prompt
         prompt = self._create_prompt(game_state_description)
         
-        # 3. Call Claude API
-        response = self._call_claude_api(prompt)
+        # 3. Call LLM API
+        response = self._call_llm(prompt)
         
         # 4. Parse response and execute actions
         action_result = self._execute_action(response)
@@ -149,145 +211,130 @@ class PokemonAgent:
             
             # For placeholder, get basic image info
             width, height = image.size
-            return f"The game screen shows a {width}x{height} pixel view. The player character appears to be in what looks like Pallet Town. There are buildings visible and some NPCs. There's text at the bottom of the screen that appears to be dialog."
+            return f"Game screen shows a Pokémon game view. Resolution: {width}x{height}. The game appears to be running. Please analyze what's visible and make a strategic decision."
         else:
-            return "The game screen shows the player character standing in what appears to be Pallet Town. There are two houses visible, and Professor Oak's lab is at the bottom of the screen. No wild Pokémon or trainers are visible."
+            return "No screenshot available. Please take actions to explore the game."
     
-    def _call_claude_api(self, prompt):
-        """Call Claude using the Anthropic API"""
+    def _call_llm(self, prompt):
+        """Call the configured LLM with the given prompt"""
         try:
-            message = self.client.messages.create(
-                model="claude-3-7-sonnet-20240229",
-                max_tokens=1024,
-                temperature=0.7,
-                system=prompt,
-                messages=[{"role": "user", "content": "What should I do next in the game?"}]
-            )
-            return message.content[0].text
+            start_time = time.time()
+            
+            if self.llm_provider == "anthropic":
+                # Call Claude API
+                response = self.client.messages.create(
+                    model=self.model_name,
+                    max_tokens=2000,
+                    temperature=0.7,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                result = response.content[0].text
+                
+            elif self.llm_provider == "ollama":
+                # Call Ollama API
+                response = self.client.chat(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "You are an AI agent playing Pokémon Red."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                result = response["message"]["content"]
+            
+            elapsed = time.time() - start_time
+            logger.info(f"LLM response received in {elapsed:.2f} seconds")
+            return result
+            
         except Exception as e:
-            print(f"Error calling Claude API: {e}")
-            return "Failed to get response from Claude."
+            logger.error(f"Error calling {self.llm_provider} LLM: {e}")
+            return f"Error: Unable to get response from {self.llm_provider} LLM. Exception: {str(e)}"
     
     def _extract_tool_call(self, response_text):
-        """Extract tool call from Claude's response"""
+        """Extract tool call JSON from the response text"""
         try:
-            # Look for JSON-formatted tool call
-            start_idx = response_text.find("{")
-            end_idx = response_text.rfind("}")
-            
-            if start_idx >= 0 and end_idx >= 0:
-                json_str = response_text[start_idx:end_idx+1]
+            # Find JSON-like tool call in the response
+            json_match = re.search(r'({[\s\S]*"tool"[\s\S]*})', response_text)
+            if json_match:
+                json_str = json_match.group(1)
+                # Parse the JSON
+                tool_call = json.loads(json_str)
+                return tool_call
+            else:
+                logger.warning("No valid tool call found in response")
+                return None
                 
-                # Try to parse the extracted JSON
-                try:
-                    tool_call = json.loads(json_str)
-                    if "tool" in tool_call and "parameters" in tool_call:
-                        return tool_call
-                except json.JSONDecodeError:
-                    # If that fails, try to find more specific patterns
-                    pass
-            
-            # Try to match specific tool patterns if JSON parsing failed
-            patterns = [
-                {"tool": "use_emulator", "pattern": r'{\s*"tool"\s*:\s*"use_emulator"\s*,\s*"parameters"\s*:\s*{\s*"buttons"\s*:\s*\[(.*?)\]\s*}\s*}'},
-                {"tool": "update_knowledge", "pattern": r'{\s*"tool"\s*:\s*"update_knowledge"\s*,\s*"parameters"\s*:\s*{\s*"section"\s*:\s*"(.*?)"\s*,\s*"content"\s*:\s*"(.*?)"\s*}\s*}'},
-                {"tool": "navigate", "pattern": r'{\s*"tool"\s*:\s*"navigate"\s*,\s*"parameters"\s*:\s*{\s*"destination"\s*:\s*"(.*?)"\s*}\s*}'},
-                {"tool": "analyze_screen", "pattern": r'{\s*"tool"\s*:\s*"analyze_screen"\s*,\s*"parameters"\s*:\s*{\s*"focus_area"\s*:\s*"(.*?)"\s*}\s*}'}
-            ]
-            
-            import re
-            for pattern_info in patterns:
-                matches = re.search(pattern_info["pattern"], response_text, re.DOTALL)
-                if matches:
-                    if pattern_info["tool"] == "use_emulator":
-                        buttons_str = matches.group(1)
-                        buttons = [b.strip(' "\'') for b in buttons_str.split(",")]
-                        return {"tool": "use_emulator", "parameters": {"buttons": buttons}}
-                    elif pattern_info["tool"] == "update_knowledge":
-                        return {"tool": "update_knowledge", "parameters": {"section": matches.group(1), "content": matches.group(2)}}
-                    elif pattern_info["tool"] == "navigate":
-                        return {"tool": "navigate", "parameters": {"destination": matches.group(1)}}
-                    elif pattern_info["tool"] == "analyze_screen":
-                        return {"tool": "analyze_screen", "parameters": {"focus_area": matches.group(1)}}
-            
-            # If no patterns match, return None
-            return None
-            
         except Exception as e:
-            print(f"Error extracting tool call: {e}")
+            logger.error(f"Error extracting tool call: {e}")
             return None
             
     def _execute_action(self, response):
-        """Parse the response to extract and execute the action"""
-        # Parse the response to extract the action
+        """Execute the action specified in the response"""
         tool_call = self._extract_tool_call(response)
         
-        if not tool_call or "tool" not in tool_call:
-            print("No valid tool call found in response")
-            return "No action taken - couldn't identify a valid tool call"
-        
-        tool = tool_call.get("tool")
-        parameters = tool_call.get("parameters", {})
-        
-        result = "Action complete"
-        
-        if tool == "use_emulator":
-            buttons = parameters.get("buttons", [])
-            print(f"Executing button presses: {buttons}")
-            for button in buttons:
-                if button.lower() == "wait":
-                    time.sleep(0.5)  # Wait command for pauses
-                else:
-                    self.controller.press_button(button)
-                    time.sleep(0.2)  # Give the game time to process each button
-            result = f"Buttons pressed: {buttons}"
+        if not tool_call:
+            return "No valid action found in response."
+            
+        try:
+            tool = tool_call.get("tool")
+            parameters = tool_call.get("parameters", {})
+            
+            if tool == "use_emulator":
+                buttons = parameters.get("buttons", [])
+                if not buttons:
+                    return "No buttons specified for emulator."
+                    
+                # Send button presses to the controller
+                success = self.controller.press_sequence(buttons)
+                return f"Button sequence {buttons} sent to emulator. Success: {success}"
                 
-        elif tool == "update_knowledge":
-            section = parameters.get("section", "")
-            content = parameters.get("content", "")
-            print(f"Updating knowledge base section '{section}' with: {content}")
-            self.knowledge_base.update_section(section, content)
-            result = f"Knowledge base updated: {section}"
-            
-        elif tool == "navigate":
-            destination = parameters.get("destination", "")
-            print(f"Navigating to: {destination}")
-            # In a complete implementation, this would use pathfinding
-            # For now, just simulate movement
-            self.controller.press_button("UP")
-            time.sleep(0.2)
-            self.controller.press_button("RIGHT")
-            time.sleep(0.2)
-            result = f"Attempted navigation to {destination}"
-            
-        elif tool == "analyze_screen":
-            focus_area = parameters.get("focus_area", "")
-            print(f"Analyzing screen area: {focus_area}")
-            # In a complete implementation, this would do targeted image analysis
-            # For now, just return basic analysis
-            if focus_area == "dialog_text":
-                result = "Dialog text appears to say: 'Welcome to the world of POKEMON!'"
+            elif tool == "update_knowledge":
+                section = parameters.get("section")
+                content = parameters.get("content")
+                
+                if not section or not content:
+                    return "Section and content required for knowledge update."
+                    
+                self.knowledge_base.update_section(section, content)
+                return f"Knowledge base updated. Section '{section}' now contains: {content[:50]}..."
+                
+            elif tool == "navigate":
+                destination = parameters.get("destination")
+                current_location = parameters.get("current_location") or self.current_location
+                
+                if not destination:
+                    return "Destination required for navigation."
+                    
+                # In a real implementation, this would use pathfinding logic
+                return f"Navigation from {current_location} to {destination} would be implemented here."
+                
+            elif tool == "analyze_screen":
+                focus_area = parameters.get("focus_area", "full_screen")
+                
+                # In a real implementation, this would perform detailed image analysis
+                return f"Detailed analysis of {focus_area} would be performed here."
+                
             else:
-                result = f"Screen analysis of {focus_area}: No specific elements detected"
-            
-        else:
-            print(f"Unknown tool: {tool}")
-            result = f"Unknown tool: {tool}"
-            
-        return result
+                return f"Unknown tool: {tool}"
+                
+        except Exception as e:
+            logger.error(f"Error executing action: {e}")
+            return f"Error executing action: {str(e)}"
             
     def _update_conversation_history(self, game_state, response, tool_call, result):
-        """Add the latest exchange to history"""
-        self.conversation_history.append({
-            "game_state": game_state,
-            "response": response,
-            "actions_taken": str(tool_call) if tool_call else "No action",
-            "result": result
-        })
-        
-        # Keep only the last 5 exchanges to avoid token limits
-        if len(self.conversation_history) > 5:
+        """Update the conversation history with the current interaction"""
+        # Limit history to last 5 exchanges
+        if len(self.conversation_history) >= 5:
             self.conversation_history.pop(0)
+            
+        # Add current exchange
+        self.conversation_history.append({
+            'game_state': game_state,
+            'response': response,
+            'action': tool_call,
+            'result': result
+        })
             
     def _log_agent_action(self, game_state, response, result):
         """Log the agent's thinking and actions for visualization"""
@@ -315,4 +362,4 @@ class PokemonAgent:
             try:
                 callback(self.step_count, game_state, reasoning, tool_call, result)
             except Exception as e:
-                print(f"Error in callback: {e}")
+                logger.error(f"Error in callback: {e}")
