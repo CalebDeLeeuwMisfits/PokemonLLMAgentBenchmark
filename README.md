@@ -144,7 +144,8 @@ set ROM_PATH=path\to\pokemon\rom.gb
 # export ROM_PATH="path/to/pokemon/rom.gb"
 ```
 
-4. **Run the Agent:**
+4. **Run the Agent
+```
 # Using Claude (default)
 python main.py
 
