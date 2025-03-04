@@ -85,6 +85,7 @@ pip install anthropic  # For Claude API
 pip install ollama     # For Ollama local inference
 ```
 OR
+```
 # Create a conda environment
 conda create -n pokemon_env python=3.9
 conda activate pokemon_env
