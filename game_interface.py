@@ -1,12 +1,11 @@
-import subprocess
 import time
 import os
 import cv2
 import numpy as np
 import pytesseract
 from PIL import Image
-import platform
 import logging
+from pyboy import PyBoy
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
@@ -14,121 +13,144 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 class Emulator:
-    def __init__(self, emulator_path, rom_path):
-        self.emulator_path = emulator_path
+    def __init__(self, rom_path):
+        """Initialize the PyBoy emulator
+        
+        Args:
+            rom_path: Path to the Pokémon ROM file
+        """
         self.rom_path = rom_path
-        self.process = None
-        self.window_handle = None
-        self.system = platform.system()
+        self.pyboy = None
         
     def start(self):
-        """Start the emulator process"""
+        """Start the PyBoy emulator"""
         try:
-            # Launch the emulator with the ROM
-            cmd = [self.emulator_path, self.rom_path]
+            # Initialize PyBoy with the ROM
+            self.pyboy = PyBoy(self.rom_path, window_type="SDL2", game_wrapper=True)
             
-            # Use appropriate creation flags for the platform
-            if self.system == "Windows":
-                self.process = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
-            else:
-                self.process = subprocess.Popen(cmd)
+            # Disable speed limit for faster emulation
+            self.pyboy.set_emulation_speed(1)  # Normal speed; use 0 for unlimited
+            
+            # Advance a few frames to ensure the game is loaded
+            for _ in range(10):
+                self.pyboy.tick()
                 
-            logger.info(f"Started emulator with PID: {self.process.pid}")
-            
-            # Allow time for the emulator window to appear
-            time.sleep(2)
-            
-            # Try to get window handle for screenshot capture
-            self._get_window_handle()
-            
+            logger.info(f"Started PyBoy emulator with ROM: {self.rom_path}")
             return True
+            
         except Exception as e:
-            logger.error(f"Failed to start emulator: {e}")
+            logger.error(f"Failed to start PyBoy emulator: {e}")
             return False
-    
-    def _get_window_handle(self):
-        """Get handle to the emulator window for screenshot capture"""
-        try:
-            if self.system == "Windows":
-                import win32gui
-                import win32process
-                
-                def callback(hwnd, hwnds):
-                    if win32gui.IsWindowVisible(hwnd) and win32gui.IsWindowEnabled(hwnd):
-                        _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                        if pid == self.process.pid:
-                            hwnds.append(hwnd)
-                    return True
-                
-                hwnds = []
-                win32gui.EnumWindows(callback, hwnds)
-                
-                if hwnds:
-                    self.window_handle = hwnds[0]
-                    logger.info(f"Found emulator window handle: {self.window_handle}")
-            
-            # For macOS and Linux, we would use different approaches
-            # This would need to be implemented based on the specific emulator
-            
-        except Exception as e:
-            logger.error(f"Failed to get window handle: {e}")
             
     def stop(self):
-        """Stop the emulator process"""
-        if self.process:
+        """Stop the PyBoy emulator"""
+        if self.pyboy:
             try:
-                self.process.terminate()
-                time.sleep(1)
-                # Force kill if not terminated
-                if self.process.poll() is None:
-                    self.process.kill()
-                logger.info("Emulator stopped")
+                self.pyboy.stop()
+                logger.info("PyBoy emulator stopped")
             except Exception as e:
-                logger.error(f"Error stopping emulator: {e}")
-            
+                logger.error(f"Error stopping PyBoy emulator: {e}")
+                
     def send_input(self, input_command):
-        """
-        Send keyboard input to the emulator window.
-        In a complete implementation, this would use platform-specific APIs.
-        """
+        """Send button input to PyBoy"""
+        if not self.pyboy:
+            logger.error("PyBoy emulator not initialized")
+            return False
+            
         try:
-            if self.system == "Windows":
-                import win32api
-                import win32con
-                
-                # Map button names to virtual key codes
-                key_map = {
-                    "UP": win32con.VK_UP,
-                    "DOWN": win32con.VK_DOWN,
-                    "LEFT": win32con.VK_LEFT,
-                    "RIGHT": win32con.VK_RIGHT,
-                    "A": ord('Z'),     # Typical key mapping for GBA emulators
-                    "B": ord('X'),
-                    "START": win32con.VK_RETURN,
-                    "SELECT": win32con.VK_RSHIFT
-                }
-                
-                if input_command in key_map and self.window_handle:
-                    # Set focus to emulator window
-                    import win32gui
-                    win32gui.SetForegroundWindow(self.window_handle)
-                    
-                    # Send keypress
-                    key = key_map[input_command]
-                    win32api.keybd_event(key, 0, 0, 0)  # Key down
-                    time.sleep(0.1)
-                    win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)  # Key up
-                    logger.info(f"Sent key: {input_command}")
-                    return True
+            # Map button names to PyBoy button names (PyBoy uses lowercase)
+            button_map = {
+                "UP": "up",
+                "DOWN": "down",
+                "LEFT": "left",
+                "RIGHT": "right",
+                "A": "a",
+                "B": "b",
+                "START": "start", 
+                "SELECT": "select"
+            }
             
-            # For now, just log the input for other platforms
-            logger.info(f"Would send input to emulator: {input_command}")
-            return True
-            
+            if input_command in button_map:
+                # Press and release the button
+                button_name = button_map[input_command]
+                self.pyboy.button(button_name)
+                self.pyboy.tick()  # Process at least one frame
+                
+                logger.info(f"Sent key: {input_command}")
+                return True
+            else:
+                logger.warning(f"Unknown button: {input_command}")
+                return False
+                
         except Exception as e:
             logger.error(f"Error sending input: {e}")
             return False
 
+    def read_memory(self, address):
+        """Read a single byte from memory"""
+        if not self.pyboy:
+            logger.error("PyBoy emulator not initialized")
+            return None
+        
+        try:
+            return self.pyboy.memory[address]
+        except Exception as e:
+            logger.error(f"Error reading memory at {hex(address)}: {e}")
+            return None
+
+    def read_memory_range(self, start_address, length):
+        """Read a range of bytes from memory"""
+        if not self.pyboy:
+            logger.error("PyBoy emulator not initialized")
+            return None
+        
+        try:
+            return [self.pyboy.memory[start_address + i] for i in range(length)]
+        except Exception as e:
+            logger.error(f"Error reading memory range from {hex(start_address)}: {e}")
+            return None
+
+    def get_player_position(self):
+        """Get the player's current position"""
+        x = self.read_memory(PokemonRedMemoryMap.PLAYER_X)
+        y = self.read_memory(PokemonRedMemoryMap.PLAYER_Y)
+        return x, y
+
+    def get_pokemon_party(self):
+        """Get information about the Pokémon party"""
+        count = self.read_memory(PokemonRedMemoryMap.PARTY_COUNT)
+        if count is None or count == 0:
+            return []
+        
+        species_list = self.read_memory_range(PokemonRedMemoryMap.PARTY_SPECIES, 6)
+        if not species_list:
+            return []
+            
+        party = []
+        for i in range(min(count, 6)):
+            species_id = species_list[i]
+            name = PokemonRedMemoryMap.get_pokemon_name(species_id, self.pyboy.memory)
+            party.append({"species_id": species_id, "name": name})
+        
+        return party
+
+    def has_badge(self, badge_index):
+        """Check if player has a specific gym badge (0-7)"""
+        if badge_index < 0 or badge_index > 7:
+            return False
+        
+        badges = self.read_memory(PokemonRedMemoryMap.BADGE_FLAGS)
+        if badges is None:
+            return False
+            
+        return bool(badges & (1 << badge_index))
+
+    def advance_frames(self, count=1, render=True):
+        """Advance a specific number of frames"""
+        if not self.pyboy:
+            return
+            
+        self.pyboy.tick(count, render)
 
 class Controller:
     def __init__(self, emulator):
@@ -142,6 +164,13 @@ class Controller:
             return False
             
         button = button.upper()
+        if button.lower() == "wait":
+            # Special case for wait command - just advance frames
+            if self.emulator.pyboy:
+                self.emulator.pyboy.tick()
+                return True
+            return False
+            
         if button not in self.valid_buttons:
             logger.warning(f"Invalid button: {button}")
             return False
@@ -198,70 +227,36 @@ class ScreenCapture:
         self.last_processed_image = None
         
         # Initialize Tesseract OCR path if necessary
-        if platform.system() == "Windows":
+        if os.name == 'nt':  # Windows
             try:
                 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
             except:
                 logger.warning("Couldn't set Tesseract path. Make sure it's installed.")
         
     def capture(self):
-        """
-        Capture a screenshot of the emulator window.
-        In a complete implementation, this would capture the actual window.
-        """
+        """Capture a screenshot from PyBoy"""
+        if not self.emulator.pyboy:
+            logger.error("PyBoy emulator not initialized")
+            dummy_image = np.zeros((144, 160, 3), dtype=np.uint8)  # GB resolution
+            self.last_image = dummy_image
+            return dummy_image
+            
         try:
-            if self.emulator.window_handle and platform.system() == "Windows":
-                import win32gui
-                import win32ui
-                from ctypes import windll
-                from PIL import Image
-                
-                # Get window dimensions
-                left, top, right, bot = win32gui.GetClientRect(self.emulator.window_handle)
-                width = right - left
-                height = bot - top
-                
-                # Get device context
-                hwnd_dc = win32gui.GetWindowDC(self.emulator.window_handle)
-                mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
-                save_dc = mfc_dc.CreateCompatibleDC()
-                
-                # Create bitmap
-                save_bitmap = win32ui.CreateBitmap()
-                save_bitmap.CreateCompatibleBitmap(mfc_dc, width, height)
-                save_dc.SelectObject(save_bitmap)
-                
-                # Copy screen to bitmap
-                result = windll.user32.PrintWindow(self.emulator.window_handle, save_dc.GetSafeHdc(), 0)
-                
-                # Convert to PIL Image
-                bmpinfo = save_bitmap.GetInfo()
-                bmpstr = save_bitmap.GetBitmapBits(True)
-                img = Image.frombuffer(
-                    'RGB',
-                    (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
-                    bmpstr, 'raw', 'BGRX', 0, 1)
-                
-                # Convert to numpy array for OpenCV processing
-                self.last_image = np.array(img)
-                
-                # Clean up
-                save_dc.DeleteDC()
-                mfc_dc.DeleteDC()
-                win32gui.ReleaseDC(self.emulator.window_handle, hwnd_dc)
-                win32gui.DeleteObject(save_bitmap.GetHandle())
-                
-                logger.info(f"Captured screenshot: {width}x{height}")
-                return self.last_image
-        
+            # Get screen as PIL Image from PyBoy
+            pil_image = self.emulator.pyboy.screen.image
+            
+            # Convert to numpy array for OpenCV processing
+            self.last_image = np.array(pil_image)
+            logger.debug(f"Captured screenshot: {pil_image.width}x{pil_image.height}")
+            return self.last_image
+            
         except Exception as e:
             logger.error(f"Error capturing screenshot: {e}")
-        
-        # Fallback: return a dummy image
-        dummy_image = np.zeros((144, 160, 3), dtype=np.uint8)
-        self.last_image = dummy_image
-        return dummy_image
-        
+            dummy_image = np.zeros((144, 160, 3), dtype=np.uint8)
+            self.last_image = dummy_image
+            return dummy_image
+    
+    # The rest of the class remains the same as in the original
     def process_image(self, image=None):
         """Process the screenshot for better analysis"""
         if image is None:
@@ -355,3 +350,38 @@ class ScreenCapture:
         except Exception as e:
             logger.error(f"Error detecting dialog box: {e}")
             return False
+
+class PokemonRedMemoryMap:
+    """Memory map locations for Pokémon Red"""
+    
+    # Player information
+    PLAYER_X = 0xD362  # X position on map
+    PLAYER_Y = 0xD361  # Y position on map
+    PLAYER_DIRECTION = 0xD368  # 0 = Down, 4 = Up, 8 = Left, 0C = Right
+    CURRENT_MAP = 0xD35E  # Current map ID
+    
+    # Pokémon party
+    PARTY_COUNT = 0xD163  # Number of Pokémon in party
+    PARTY_SPECIES = 0xD164  # List of species IDs in party (6 bytes)
+    PARTY_DATA = 0xD16B  # Start of party Pokémon data
+    
+    # Battle information
+    BATTLE_TYPE = 0xD057  # Type of battle
+    ENEMY_POKEMON_SPECIES = 0xD0B5  # Current enemy species
+    ENEMY_POKEMON_LEVEL = 0xD127  # Current enemy level
+    
+    # Game state flags
+    BADGE_FLAGS = 0xD356  # Badges obtained
+    EVENT_FLAGS = 0xD747  # Start of event flags (800 bytes)
+    ITEM_FLAGS = 0xD31D  # Owned items
+    
+    @classmethod
+    def get_pokemon_name(cls, species_id, memory):
+        """Get Pokémon name from species ID using memory map"""
+        # Simplified - would need actual implementation
+        pokemon_names = {
+            1: "BULBASAUR", 4: "CHARMANDER", 7: "SQUIRTLE",
+            25: "PIKACHU", 133: "EEVEE"
+            # Add more as needed
+        }
+        return pokemon_names.get(species_id, f"POKEMON_{species_id}")

@@ -8,9 +8,10 @@ from pathlib import Path
 import threading
 import queue
 from typing import Optional
-from game_interface import Emulator, Controller, ScreenCapture
+from game_interface import Emulator, Controller, ScreenCapture, PokemonRedMemoryMap
 from agent import PokemonAgent, KnowledgeBase
 from dataset_manager import DatasetManager
+from pokemon_tools import PokemonTools
 
 # Configure logging
 logging.basicConfig(
@@ -33,16 +34,18 @@ def setup_screenshot_directory():
 
 def parse_arguments():
     """Parse command-line arguments"""
-    parser = argparse.ArgumentParser(description="Run the Pokémon LLM Agent")
+    parser = argparse.ArgumentParser(description="Run the Pokémon LLM Agent with PyBoy")
     
     parser.add_argument("--rom", type=str, help="Path to Pokémon ROM file")
-    parser.add_argument("--emulator", type=str, help="Path to emulator executable")
     parser.add_argument("--save-screenshots", action="store_true", help="Save screenshots during gameplay")
     parser.add_argument("--screenshot-interval", type=float, default=10.0, 
                         help="Interval between saved screenshots in seconds (default: 10)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with verbose output")
     parser.add_argument("--load-knowledge", type=str, help="Load knowledge base from file")
     parser.add_argument("--save-knowledge", type=str, help="Save knowledge base to file on exit")
+    parser.add_argument("--llm-provider", type=str, default="anthropic", 
+                        choices=["anthropic", "ollama"], help="LLM provider to use")
+    parser.add_argument("--model-name", type=str, help="Name of the model to use")
     
     # Add dataset arguments
     parser.add_argument("--enable-dataset", action="store_true", help="Enable dataset collection")
@@ -162,12 +165,13 @@ def main():
     
     # Load configuration
     api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY environment variable is required")
+    if args.llm_provider == "anthropic" and not api_key:
+        raise ValueError("ANTHROPIC_API_KEY environment variable is required when using Anthropic")
     
-    # Set up paths, preferring command line arguments over environment variables
-    emulator_path = args.emulator or os.environ.get("EMULATOR_PATH", "path/to/your/emulator")
-    rom_path = args.rom or os.environ.get("ROM_PATH", "path/to/pokemon/rom.gb")
+    # Set up ROM path, preferring command line argument over environment variable
+    rom_path = args.rom or os.environ.get("ROM_PATH")
+    if not rom_path:
+        raise ValueError("ROM path must be provided (--rom argument or ROM_PATH environment variable)")
     
     # Set up screenshot directory if saving is enabled
     screenshot_dir = None
@@ -201,17 +205,28 @@ def main():
             logger.warning("Dataset collection requested but missing required parameters (--hf-repo-id and --hf-token or HF_TOKEN env var)")
 
     # Initialize components
-    logger.info("Initializing game components...")
-    emulator = Emulator(emulator_path, rom_path)
+    logger.info("Initializing PyBoy emulator...")
+    emulator = Emulator(rom_path)
     controller = Controller(emulator)
     screen_capture = ScreenCapture(emulator)
+    
+    # Initialize Pokemon tools
+    pokemon_tools = PokemonTools(emulator, controller, screen_capture)
     
     # Load knowledge base
     knowledge_base = load_knowledge_base(args.load_knowledge)
     
     # Initialize the agent with a callback to the visualization manager
+    # Caused errors with duplicate variables in past smolagents projects
     logger.info("Initializing Pokémon agent...")
-    agent = PokemonAgent(api_key, controller, screen_capture, knowledge_base)
+    agent = PokemonAgent(
+        api_key=api_key, 
+        pokemon_tools=pokemon_tools,
+        knowledge_base=knowledge_base,
+        llm_provider=args.llm_provider,
+        model_name=args.model_name
+    )
+
     
     # Add visualization callback to the agent
     def agent_thought_callback(step_count, game_state, response, action, result):
@@ -238,10 +253,10 @@ def main():
         
     agent.register_callback(agent_thought_callback)
     
-    print("Starting Pokémon LLM Agent...")
+    print("Starting Pokémon LLM Agent with PyBoy...")
     viz_manager.start()
     emulator.start()
-    time.sleep(2)  # Give emulator time to start
+    time.sleep(1)  # Give emulator time to initialize
     
     screenshot_interval = args.screenshot_interval
     
