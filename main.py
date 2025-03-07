@@ -11,7 +11,7 @@ from typing import Optional
 from game_interface import Emulator, Controller, ScreenCapture, PokemonRedMemoryMap
 from agent import PokemonAgent, KnowledgeBase
 from dataset_manager import DatasetManager
-from pokemon_tools import PokemonTools
+from agent import PokemonAgent, KnowledgeBase, PokemonTools
 
 # Configure logging
 logging.basicConfig(
