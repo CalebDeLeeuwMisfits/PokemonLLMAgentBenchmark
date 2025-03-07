@@ -114,7 +114,7 @@ def advance_frames(count: int = 1, render: bool = True) -> str:
     return f"Advanced game by {count} frames"
 
 @tool
-def set_emulation_speed(speed: Union[int, float]) -> str:
+def set_emulation_speed(speed: float) -> str:
     """Set the emulation speed.
     
     Args:
