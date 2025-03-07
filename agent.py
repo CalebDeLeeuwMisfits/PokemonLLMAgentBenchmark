@@ -221,17 +221,41 @@ class PokemonAgent:
                         self.max_tokens = max_tokens
                         self.temperature = temperature
                     
-                    def generate(self, prompt, **kwargs):
-                        # Simple wrapper for Ollama library to match smolagents interface
-                        response = ollama.chat(
-                            model=self.model_name,
-                            messages=[{"role": "user", "content": prompt}],
-                            options={
-                                "temperature": self.temperature,
-                                "num_predict": self.max_tokens
-                            }
-                        )
+                    def __call__(self, prompt):
+                        """Make the model callable as required by smolagents"""
+                        if isinstance(prompt, list):
+                            # Handle message format
+                            messages = []
+                            for msg in prompt:
+                                if isinstance(msg, dict) and "content" in msg:
+                                    messages.append({"role": msg.get("role", "user"), "content": msg["content"]})
+                                else:
+                                    messages.append({"role": "user", "content": str(msg)})
+                            
+                            response = ollama.chat(
+                                model=self.model_name,
+                                messages=messages,
+                                options={
+                                    "temperature": self.temperature,
+                                    "num_predict": self.max_tokens
+                                }
+                            )
+                        else:
+                            # Handle string prompt
+                            response = ollama.chat(
+                                model=self.model_name,
+                                messages=[{"role": "user", "content": str(prompt)}],
+                                options={
+                                    "temperature": self.temperature,
+                                    "num_predict": self.max_tokens
+                                }
+                            )
+                        
                         return response['message']['content']
+                    
+                    def generate(self, prompt, **kwargs):
+                        """Compatibility method for older code"""
+                        return self(prompt)
                 
                 self.model = OllamaModelWrapper(
                     model=self.model_name,
