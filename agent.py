@@ -212,15 +212,37 @@ class PokemonAgent:
                 
         elif self.llm_provider == "ollama":
             try:
-                from smolagents import OllamaModel
-                self.model = OllamaModel(
+                # Try using native ollama library directly instead of OllamaModel
+                import ollama
+                
+                class OllamaModelWrapper:
+                    def __init__(self, model, max_tokens=2000, temperature=0.7):
+                        self.model_name = model
+                        self.max_tokens = max_tokens
+                        self.temperature = temperature
+                    
+                    def generate(self, prompt, **kwargs):
+                        # Simple wrapper for Ollama library to match smolagents interface
+                        response = ollama.chat(
+                            model=self.model_name,
+                            messages=[{"role": "user", "content": prompt}],
+                            options={
+                                "temperature": self.temperature,
+                                "num_predict": self.max_tokens
+                            }
+                        )
+                        return response['message']['content']
+                
+                self.model = OllamaModelWrapper(
                     model=self.model_name,
                     max_tokens=2000,
                     temperature=0.7
                 )
                 logger.info(f"Initialized Ollama client with model {self.model_name}")
             except ImportError:
-                raise ImportError("The 'smolagents' package is required. Install it with 'pip install smolagents'.")
+                raise ImportError("The 'ollama' package is required for Ollama support. Install it with 'pip install ollama'.")
+            except Exception as e:
+                raise Exception(f"Failed to initialize Ollama: {e}")
         else:
             raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
             
