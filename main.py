@@ -11,7 +11,6 @@ from typing import Optional
 from game_interface import Emulator, Controller, ScreenCapture, PokemonRedMemoryMap
 from agent import PokemonAgent, KnowledgeBase
 from dataset_manager import DatasetManager
-from agent import PokemonAgent, KnowledgeBase, PokemonTools
 
 # Configure logging
 logging.basicConfig(
@@ -210,8 +209,8 @@ def main():
     controller = Controller(emulator)
     screen_capture = ScreenCapture(emulator)
     
-    # Initialize Pokemon tools
-    pokemon_tools = PokemonTools(emulator, controller, screen_capture)
+    # Initialize Pokemon tools - no longer a class for pokemon_tools in agent.py so now inits over there
+    pokemon_tools = emulator, controller, screen_capture
     
     # Load knowledge base
     knowledge_base = load_knowledge_base(args.load_knowledge)
