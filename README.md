@@ -10,6 +10,8 @@ Steps of the agent are currently limited for testing but in the code notes it is
 
 A simplified version with just five core files that can use either the Anthropic API or local LLM inference via Ollama to play Pokémon Red and collect gameplay data.
 
+** POKEMON_TOOLS.PY IS NO LONGER USED IN THIS CURRENT VERSION BECAUSE THE TOOLS WORK BEST IN THE SAME FILE USING SMOLAGENTS **
+
 ## Overview
 
 This system will use:
