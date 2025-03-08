@@ -365,13 +365,13 @@ Different models may have different strengths, weaknesses, and requirements:
   - For best performance, use models with 7B-13B parameters on systems with 16GB+ RAM
   - Larger models (like 70B) require more substantial hardware (32GB+ RAM)
 
-### Specific Model Recommendations
+### Specific Model Recommendations (must be GGUF)
 
 | Hardware | Recommended Ollama Model |
 |----------|--------------------------|
-| 8GB RAM  | phi-2, llama2:7b-chat    |
-| 16GB RAM | deepseek-coder:6.7b, llama2:13b |
-| 32GB+ RAM | llama3:8b, deepseek-coder:16b |
+| 8GB RAM  | Qwen/Qwen2.5-Coder-7B-Instruct, phi-2, llama2:7b-chat (code models preferred)   |
+| 16GB RAM | deepseek-coder:6.7b, Qwen/Qwen2.5-Coder-14B-Instruct |
+| 32GB+ RAM | deepseek-coder:16b |
 
 ### Log Files
 
