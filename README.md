@@ -313,7 +313,72 @@ The code is quite comprehensive already, but you might consider these additions:
 
 The current implementation already handles the core functionality needed to connect PyBoy to Pokémon Red, so these would be enhancements rather than requirements.
 
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Emulator Errors
+
+**"Cartridge header checksum mismatch"**
+- This typically indicates an issue with your ROM file
+- Ensure you're using a valid, unmodified Pokémon Red ROM
+- Some ROM files may have headers that need to be removed or added for PyBoy compatibility
+
+**"PyBoy emulator not initialized"**
+- Check that the ROM file exists at the specified path
+- Verify you have the correct ROM format (.gb file)
+- Try using a different ROM source if problems persist
+
+#### 2. Ollama Model Issues
+
+**"model not found, try pulling it first"**
+- The model name in your code must exactly match what you pulled in Ollama
+- If you pulled `hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Base-GGUF:Q6_K`, you need to use that exact name including the `hf.co/` prefix
+- To fix this issue, either:
+  1. Change your model_name in the code to match the pulled model:
+     ```python
+     # In agent.py, modify this line:
+     self.model_name = "hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Base-GGUF:Q6_K"
+     ```
+  2. Or pull the model name used in the code:
+     ```bash
+     ollama pull deepseek-coder:16b-instruct
+     ```
+
+**Connection errors**
+- Ensure the Ollama service is running in the background
+- Check if Ollama is listening on port 11434 (default)
+- Restart the Ollama service if necessary
+
+#### 3. API Key Issues
+
+**"API key is required for Anthropic"**
+- When using the Anthropic provider, make sure to set the `ANTHROPIC_API_KEY` environment variable
+- Or provide the key directly via the API key parameter
+
+### When Using Different Models
+
+Different models may have different strengths, weaknesses, and requirements:
+
+- **Claude models**: Best for reasoning but require an API key and internet connection
+- **Ollama models**: Can run locally but need sufficient RAM and may be slower
+  - For best performance, use models with 7B-13B parameters on systems with 16GB+ RAM
+  - Larger models (like 70B) require more substantial hardware (32GB+ RAM)
+
+### Specific Model Recommendations
+
+| Hardware | Recommended Ollama Model |
+|----------|--------------------------|
+| 8GB RAM  | phi-2, llama2:7b-chat    |
+| 16GB RAM | deepseek-coder:6.7b, llama2:13b |
+| 32GB+ RAM | llama3:8b, deepseek-coder:16b |
+
+### Log Files
+
+If you encounter issues, check these logs for more details:
+- `pokemon_agent.log`: Contains detailed application logs
+- PyBoy warnings and errors in the console output
+
 ## License
 
 Mozilla Public License (MPL)
-````
