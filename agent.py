@@ -228,7 +228,24 @@ class PokemonAgent:
                             messages = []
                             for msg in prompt:
                                 if isinstance(msg, dict) and "content" in msg:
-                                    messages.append({"role": msg.get("role", "user"), "content": msg["content"]})
+                                    # Ensure content is always a string
+                                    content = msg["content"]
+                                    if isinstance(content, list):
+                                        # Convert complex content structure to string
+                                        content_str = ""
+                                        for item in content:
+                                            if isinstance(item, dict) and "text" in item:
+                                                content_str += item["text"]
+                                            elif isinstance(item, str):
+                                                content_str += item
+                                        content = content_str
+                                    else:
+                                        content = str(content)
+                                    
+                                    messages.append({
+                                        "role": msg.get("role", "user"),
+                                        "content": content
+                                    })
                                 else:
                                     messages.append({"role": "user", "content": str(msg)})
                             
@@ -246,7 +263,7 @@ class PokemonAgent:
                                 model=self.model_name,
                                 messages=[{"role": "user", "content": str(prompt)}],
                                 options={
-                                    "temperature": self.temperature,
+                                    "temperature": self.self.temperature,
                                     "num_predict": self.max_tokens
                                 }
                             )
