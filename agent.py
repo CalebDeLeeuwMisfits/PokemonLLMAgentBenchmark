@@ -186,7 +186,7 @@ class PokemonAgent:
             if self.llm_provider == "anthropic":
                 self.model_name = "claude-3-sonnet-20240229"
             elif self.llm_provider == "ollama":
-                self.model_name = "deepseek-coder:16b-instruct"
+                self.model_name = "hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Base-GGUF:Q6_K"
             else:
                 raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
         else:
