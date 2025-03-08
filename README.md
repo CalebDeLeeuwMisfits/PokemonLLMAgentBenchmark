@@ -94,7 +94,7 @@ The agent supports two LLM providers through smolagents:
 
 2. **Ollama (Local inference)**
    - Runs models locally on your machine
-   - Default model: `deepseek-coder:16b-instruct`
+   - Default model: `QuantFactory/DeepSeek-Coder-V2-Lite-Instruct-GGUF:Q6_K`
    - Integrated through smolagents' OllamaModel
    - Requires [Ollama](https://ollama.com) to be installed and running
 
@@ -163,13 +163,13 @@ macOS: brew install tesseract
 Linux: sudo apt-get install tesseract-ocr
 Set up Ollama (for local inference):
 Install Ollama from ollama.com
-Pull the model: ollama pull deepseek-coder:16b-instruct
+Pull the model: ollama pull hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Instruct-GGUF:Q6_K
 Make sure the Ollama service is running
 
 3. **Set up Ollama (for local inference):**
 
 * Install Ollama from ollama.com
-* Pull the model: ollama pull deepseek-coder:16b-instruct
+* Pull the model: ollama pull hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Instruct-GGUF:Q6_K
 * Make sure the Ollama service is running
 
 4. **Setup Environment:**
