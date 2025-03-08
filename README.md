@@ -6,11 +6,23 @@ The program currently does not have a formal benchmark beyond the time and steps
 
 Steps of the agent are currently limited for testing but in the code notes it is clear where to adjust this in the smolagents agent config.
 
+## Recent Architecture Changes
+
+In the most recent update, we've made significant changes to the project architecture to better align with smolagents best practices:
+
+1. **Tools as Standalone Functions**: Moved all game interaction tools from the `pokemon_tools.py` class into standalone functions in `agent.py` decorated with the `@tool` decorator. This simplifies the code and avoids type hinting issues with class methods.
+
+2. **Global Component References**: Implemented global variables (`_emulator`, `_controller`, `_screen_capture`) to store references to game components, with a `setup_tool_dependencies` function to initialize them properly.
+
+3. **Direct Tool Registration**: Tools are now directly registered with the CodeAgent for better interaction with the smolagents framework.
+
+4. **Improved Ollama Integration**: Added custom `OllamaModelWrapper` class to handle local LLM inference when Ollama is selected as the provider.
+
 ## Simplified Pokémon LLM Agent
 
-A simplified version with just five core files that can use either the Anthropic API or local LLM inference via Ollama to play Pokémon Red and collect gameplay data.
+A simplified version with just four core files that can use either the Anthropic API or local LLM inference via Ollama to play Pokémon Red and collect gameplay data.
 
-** POKEMON_TOOLS.PY IS NO LONGER USED IN THIS CURRENT VERSION BECAUSE THE TOOLS WORK BEST IN THE SAME FILE USING SMOLAGENTS **
+**NOTE: POKEMON_TOOLS.PY IS NO LONGER USED IN THIS CURRENT VERSION. ALL TOOLS ARE NOW DEFINED AS STANDALONE FUNCTIONS IN AGENT.PY FOR BETTER COMPATIBILITY WITH SMOLAGENTS.**
 
 ## Overview
 
@@ -32,14 +44,10 @@ The entry point and orchestrator for the application. It loads environment confi
 - Handles graceful shutdown on interruption
 
 ### 2. agent.py
-Contains the core intelligence of the system with two main classes:
+Contains the core intelligence of the system with three main components:
 - **KnowledgeBase**: Manages the agent's memory of game state, locations, Pokémon team, objectives, and game controls in a structured format
-- **PokemonAgent**: The decision-making engine that:
-  - Processes screenshots to understand the current state
-  - Supports multiple LLM backends (Claude API or Ollama local inference)
-  - Uses smolagents' CodeAgent for structured decision making
-  - Maintains agent state and planning capabilities
-  - Logs the agent's thinking process and actions
+- **PokemonAgent**: The decision-making engine that processes screenshots and maintains agent state
+- **Tool Functions**: Standalone functions decorated with `@tool` that provide the agent with capabilities to interact with the game
 
 ### 3. game_interface.py
 Handles all interaction with the Pokémon game through the PyBoy emulator using three classes:
@@ -48,14 +56,7 @@ Handles all interaction with the Pokémon game through the PyBoy emulator using 
 - **ScreenCapture**: Captures screenshots from PyBoy and processes them with OpenCV and pytesseract for image analysis and text recognition
 - **PokemonRedMemoryMap**: Provides memory addresses for game state tracking
 
-### 4. pokemon_tools.py
-Defines tools that the agent can use to interact with the Pokémon game:
-- Uses smolagents' `@tool` decorator pattern for LLM-friendly function access
-- Provides structured, well-documented interfaces for game interaction
-- Connects the agent to the PyBoy emulator's capabilities
-- Enables memory reading and game state analysis
-
-### 5. dataset_manager.py
+### 4. dataset_manager.py
 Manages the collection and uploading of gameplay data:
 - **DatasetManager**: Records gameplay sessions as structured datasets:
   - Saves screenshots with corresponding agent reasoning and actions
