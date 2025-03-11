@@ -20,14 +20,14 @@ In the most recent update, we've made significant changes to the project archite
 
 ## Simplified Pokémon LLM Agent
 
-A simplified version with just four core files that can use either the Anthropic API or local LLM inference via Ollama to play Pokémon Red and collect gameplay data.
+This is based around a simplified version and involves just four core files that can use either the Anthropic API or local LLM inference via Ollama to play Pokémon Red and collect gameplay data.
 
 **NOTE: POKEMON_TOOLS.PY IS NO LONGER USED IN THIS CURRENT VERSION. ALL TOOLS ARE NOW DEFINED AS STANDALONE FUNCTIONS IN AGENT.PY FOR BETTER COMPATIBILITY WITH SMOLAGENTS.**
 
 ## Overview
 
 This system will use:
-1. PyBoy, a Python-based Game Boy emulator integrated directly into the code
+1. PyBoy, a Python-based Game Boy emulator integrated directly into the code ( https://github.com/Baekalfen/PyBoy )
 2. Either Claude via Anthropic's API or local LLMs via Ollama for decision making
 3. Screenshot capture and analysis to understand game state
 4. Optional dataset collection to Hugging Face for gameplay recordings
