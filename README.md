@@ -333,38 +333,49 @@ The current implementation already handles the core functionality needed to conn
 
 **"model not found, try pulling it first"**
 - The model name in your code must exactly match what you pulled in Ollama
-- If you pulled `hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Base-GGUF:Q6_K`, you need to use that exact name including the `hf.co/` prefix
+- If you pulled `hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Base-GGUF:Q6_K`, you need to use that exact name (including the `hf.co/` prefix)
 - To fix this issue, either:
   1. Change your model_name in the code to match the pulled model:
-     ```python
-     # In agent.py, modify this line:
-     self.model_name = "hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Base-GGUF:Q6_K"
+     ```
+     # Use this command to run with the exact model name
+     python main.py --llm-provider ollama --model-name "hf.co/QuantFactory/DeepSeek-Coder-V2-Lite-Base-GGUF:Q6_K"
      ```
   2. Or pull the model name used in the code:
-     ```bash
+     ```
      ollama pull deepseek-coder:16b-instruct
      ```
 
-**Connection errors**
-- Ensure the Ollama service is running in the background
-- Check if Ollama is listening on port 11434 (default)
-- Restart the Ollama service if necessary
+Message validation errors
 
-#### 3. API Key Issues
+If you see errors like "Input should be a valid string" or "object is not callable", this indicates issues with the Ollama wrapper
+The error occurs when smolagents sends complex message formats that Ollama can't process
+Solution: Update the __call__ method in the OllamaModelWrapper to properly handle complex content structures
+Connection errors
 
-**"API key is required for Anthropic"**
-- When using the Anthropic provider, make sure to set the `ANTHROPIC_API_KEY` environment variable
-- Or provide the key directly via the API key parameter
+Ensure the Ollama service is running in the background
+Check if Ollama is listening on port 11434 (default)
+Restart the Ollama service if necessary
+3. API Key Issues
+"API key is required for Anthropic"
 
-### When Using Different Models
+When using the Anthropic provider, make sure to set the ANTHROPIC_API_KEY environment variable
+Or provide the key directly via the API key parameter
+4. smolagents Compatibility Issues
+"Argument self is missing a type hint in function"
 
+This error occurs when using @tool decorator on class methods without proper type hints
+Solution: Using standalone functions (as implemented now) avoids this issue
+"Validation error for Message content"
+
+smolagents may send complex message formats that need special handling
+The OllamaModelWrapper has been updated to properly process these formats
+When Using Different Models
 Different models may have different strengths, weaknesses, and requirements:
 
-- **Claude models**: Best for reasoning but require an API key and internet connection
-- **Ollama models**: Can run locally but need sufficient RAM and may be slower
-  - For best performance, use models with 7B-13B parameters on systems with 16GB+ RAM
-  - Larger models (like 70B) require more substantial hardware (32GB+ RAM)
-
+Claude models: Best for reasoning but require an API key and internet connection
+Ollama models: Can run locally but need sufficient RAM and may be slower
+For best performance, use models with 7B-13B parameters on systems with 16GB+ RAM
+Larger models (like 70B) require more substantial hardware (32GB+ RAM)
 ### Specific Model Recommendations (must be GGUF)
 
 | Hardware | Recommended Ollama Model |
